@@ -47,4 +47,29 @@ ENTRYPOINT php -S 0.0.0.0:8999 -t /var/www
 </code></pre>
 <p>Now if you hit the docker machine ip at the port 8999, you&#39;ll see the answer from the php server within the container! Congratulations, you are now able to create docker images!</p>
 <p>For more information and a (better) tutorial, check out the <a href="https://docs.docker.com/engine/getstarted/">official Docker Tutorial</a></p>
+<h2 id="deploying-with-rancher">Deploying with Rancher</h2>
+<p>The main issue with Docker is that, while network connectivity between container on the same server is very easy (and secure), connecting multiple servers together is a nightmare. That is, until you use Rancher!</p>
+<p>Rancher is a free and open source orchestration software for Docker. They just hit version 1.0, but I&#39;ve been using it successfully in production since version 0.3, and now I definitely can&#39;t live without it.
+It creates a mesh network over a secure SSH tunnel between each host, so you&#39;ll never have to worry about IPs, iptables, etc again!</p>
+<p>A Rancher environment is composed of few elements:</p>
+<ul>
+<li>At least one host, which can be any Linux flavor that can run Docker. Rancher itself runs from a Docker container. The only restriction is that port 500 and 4500 are open from the other hosts, for the intra-server connectivity</li>
+<li>Services: one or more docker containers sharing the same responsability. Example: the Nginx service can have 1 container, or if you are getting hit by a lot of traffic, scale it up to 10.</li>
+<li>Stacks: A stack is a collection of services, with the common goal to provide a service. Example: the Blog stack can have a MySQL service, an NGINX service, etc, all working together to serve your blog.</li>
+</ul>
+<h3 id="setting-up-the-hosts">Setting up the hosts</h3>
+<p>As I mentioned before, the hosts need to be any flavor of Linux capable of running docker. In the Rancher dashboard you can even let Rancher itself create virtual machines on DigitalOcean, AWS, etc, without ever touching the linux shell!</p>
+<p>The one thing worth mentioning is that you can add labels to a host to help you organize where a container should go/is allowed to go.</p>
+<h3 id="creating-a-stack-for-a-laravel-application">Creating a stack for a Laravel application</h3>
+<p>For this example we&#39;ll assume we are developing an awesome blog, written with Laravel (of course).
+Let&#39;s list what we would need:</p>
+<ul>
+<li>a database, so let&#39;s use MySQL.</li>
+<li>a caching server: Redis</li>
+<li>a queue server: Beanstalkd</li>
+<li>webserver running Caddy and PHP with our code</li>
+<li>a loadbalancer. We expect our blog to blow up, don&#39;t we? :)</li>
+</ul>
+<p>As you can see, in a normal pre-docker world, you would have to set up every service manually, deal with the networking, and if you wanted to scale..oh well, get ready to go in the rabbit hole of network administration..</p>
+<p>Rancher to the rescue!!</p>
 </body></html>

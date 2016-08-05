@@ -59,3 +59,38 @@ docker run -d -p 8999:8999 testphp
 Now if you hit the docker machine ip at the port 8999, you'll see the answer from the php server within the container! Congratulations, you are now able to create docker images!
 
 For more information and a (better) tutorial, check out the [official Docker Tutorial](https://docs.docker.com/engine/getstarted/)
+
+
+## Deploying with Rancher
+
+The main issue with Docker is that, while network connectivity between container on the same server is very easy (and secure), connecting multiple servers together is a nightmare. That is, until you use Rancher!
+
+Rancher is a free and open source orchestration software for Docker. They just hit version 1.0, but I've been using it successfully in production since version 0.3, and now I definitely can't live without it.
+It creates a mesh network over a secure SSH tunnel between each host, so you'll never have to worry about IPs, iptables, etc again!
+
+A Rancher environment is composed of few elements:
+- At least one host, which can be any Linux flavor that can run Docker. Rancher itself runs from a Docker container. The only restriction is that port 500 and 4500 are open from the other hosts, for the intra-server connectivity
+- Services: one or more docker containers sharing the same responsability. Example: the Nginx service can have 1 container, or if you are getting hit by a lot of traffic, scale it up to 10.
+- Stacks: A stack is a collection of services, with the common goal to provide a service. Example: the Blog stack can have a MySQL service, an NGINX service, etc, all working together to serve your blog.
+
+### Setting up the hosts
+
+As I mentioned before, the hosts need to be any flavor of Linux capable of running docker. In the Rancher dashboard you can even let Rancher itself create virtual machines on DigitalOcean, AWS, etc, without ever touching the linux shell!
+
+The one thing worth mentioning is that you can add labels to a host to help you organize where a container should go/is allowed to go.
+
+### Creating a stack for a Laravel application
+
+For this example we'll assume we are developing an awesome blog, written with Laravel (of course).
+Let's list what we would need:
+
+- a database, so let's use MySQL.
+- a caching server: Redis
+- a queue server: Beanstalkd
+- webserver running Caddy and PHP with our code
+- a loadbalancer. We expect our blog to blow up, don't we? :)
+
+As you can see, in a normal pre-docker world, you would have to set up every service manually, deal with the networking, and if you wanted to scale..oh well, get ready to go in the rabbit hole of network administration..
+
+Rancher to the rescue!!
+
