@@ -1,0 +1,44 @@
+web:
+  scale: 4
+  upgrade_strategy:
+      start_first: true
+  health_check:
+      port: 80
+      interval: 30000
+      unhealthy_threshold: 4
+      response_timeout: 20000
+      request_line: GET / HTTP/1.0
+      healthy_threshold: 2
+
+web-balancer:
+  scale: 2
+  load_balancer_config:
+    name: web-balancer config
+
+
+redis:
+  scale: 1
+  health_check:
+      port: 6379
+      interval: 2000
+      unhealthy_threshold: 10
+      response_timeout: 2000
+      healthy_threshold: 2
+
+beanstalk:
+  scale: 1
+  health_check:
+      port: 11300
+      interval: 2000
+      unhealthy_threshold: 10
+      response_timeout: 2000
+      healthy_threshold: 2
+
+postgres:
+  scale: 1
+  health_check:
+      port: 5432
+      interval: 2000
+      unhealthy_threshold: 10
+      response_timeout: 2000
+      healthy_threshold: 2

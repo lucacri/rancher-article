@@ -1,0 +1,56 @@
+postgres:
+  image: 'postgres:latest'
+  environment:
+    - POSTGRES_USER=blog
+    - POSTGRES_PASSWORD=blog123
+
+redis:
+  restart: always
+  labels:
+    io.rancher.scheduler.affinity:host_label: rediscluster=true
+    io.rancher.scheduler.affinity:container_label_soft_ne: pptqueuenew=true
+    io.rancher.container.pull_image: always
+  tty: true
+  image: redis:3
+  stdin_open: true
+
+web:
+  image: 'myblog:latest'
+  restart: always
+  links:
+    - postgres:postgres
+    - redis:redis
+    - beanstalk:queue
+  environment:
+    - APP_DEBUG=true
+    - DB_HOST=postgres
+    - QUEUE_DRIVER=redis
+    - DB_DATABASE=blog
+    - DB_USERNAME=blog
+    - DB_PASSWORD=blog123
+    - USERMOD="1000 www-data"
+
+
+beanstalk:
+  image: 'schickling/beanstalkd:latest'
+  restart: always
+  labels:
+      io.rancher.scheduler.affinity:host_label: beanstalk=true
+      io.rancher.scheduler.affinity:container_label_soft_ne: pptqueuenew=true
+  tty: true
+  stdin_open: true
+
+web-balancer:
+  restart: always
+  ports:
+  - 443:80
+  - 80:80
+  labels:
+    io.rancher.loadbalancer.ssl.ports: '443'
+    io.rancher.scheduler.affinity:host_label: location=frontend
+    io.rancher.loadbalancer.target.web: myblog.com,www.myblog.com
+  tty: true
+  image: rancher/load-balancer-service
+  links:
+  - web:web
+  stdin_open: true

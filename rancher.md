@@ -61,7 +61,78 @@ Now if you hit the docker machine ip at the port 8999, you'll see the answer fro
 For more information and a (better) tutorial, check out the [official Docker Tutorial](https://docs.docker.com/engine/getstarted/)
 
 
-## Deploying with Rancher
+## Setting up Docker for local development
+
+For this example we'll assume we are developing an awesome blog, written with Laravel (of course).
+Let's list what we would need:
+
+- a database, so let's use PostgreSQL.
+- a caching server: Redis
+- a queue server: Beanstalkd
+- webserver running Caddy and PHP with our code
+
+As you can see, in a normal pre-docker world, you would have to set up every service manually, deal with the networking, and if you wanted to scale..oh well, get ready to go in the rabbit hole of network administration..
+
+Docker is just amazing for development. All we need is one simple file called `docker-compose.yaml` that describes the environment we want. For our blog we should have something like this:
+
+```yaml
+postgres:
+  image: 'postgres:latest'
+  environment:
+    - POSTGRES_USER=blog
+    - POSTGRES_PASSWORD=blog123
+
+redis:
+  restart: always
+  labels:
+    io.rancher.scheduler.affinity:host_label: rediscluster=true
+    io.rancher.scheduler.affinity:container_label_soft_ne: pptqueuenew=true
+    io.rancher.container.pull_image: always
+  tty: true
+  image: redis:3
+  stdin_open: true
+
+web:
+  image: 'lucacri/laravelcaddy'
+  restart: always
+  links:
+    - postgres:postgres
+    - redis:redis
+    - beanstalk:queue
+  environment:
+    - APP_DEBUG=true
+    - DB_HOST=postgres
+    - QUEUE_DRIVER=redis
+    - DB_DATABASE=blog
+    - DB_USERNAME=blog
+    - DB_PASSWORD=blog123
+    - USERMOD="1000 www-data"
+  ports:
+    - '80:80'
+  volumes:
+      - ./:/var/www
+
+
+beanstalk:
+  image: 'schickling/beanstalkd:latest'
+  restart: always
+  labels:
+      io.rancher.scheduler.affinity:host_label: beanstalk=true
+      io.rancher.scheduler.affinity:container_label_soft_ne: pptqueuenew=true
+  tty: true
+  stdin_open: true
+```
+
+The most important service is the `web`, which is using my base image `lucacri/laravelcaddy` ([github](https://github.com/lucacri/laravelcaddy)). It contains all the required dependencies to run PHP7 under Caddy. We are then telling it to load the current folder (the root of the Laravel app) as `/var/www` inside the container, so every file change will be replicated inside.
+
+To run this environment, from a command line run
+
+`docker-compose up`
+
+That's it! You now should have several containers running, and a fully functional blog on your development machine!
+
+
+## Setting up our Rancher 
 
 The main issue with Docker is that, while network connectivity between container on the same server is very easy (and secure), connecting multiple servers together is a nightmare. That is, until you use Rancher!
 
@@ -79,18 +150,222 @@ As I mentioned before, the hosts need to be any flavor of Linux capable of runni
 
 The one thing worth mentioning is that you can add labels to a host to help you organize where a container should go/is allowed to go.
 
-### Creating a stack for a Laravel application
+### Enter the docker-compose and rancher-compose files
 
-For this example we'll assume we are developing an awesome blog, written with Laravel (of course).
-Let's list what we would need:
+A Rancher environment can be created via the UI, or even better, from a docker-composer.yaml file. The syntax is pretty much identical to the original docker-compose file, with few simple exceptions, mostly related to the placement of the container (remember the host labels? that's where we unleash their potential!).
 
-- a database, so let's use MySQL.
-- a caching server: Redis
-- a queue server: Beanstalkd
-- webserver running Caddy and PHP with our code
-- a loadbalancer. We expect our blog to blow up, don't we? :)
+So for our Laravel blog, let's create a new `rancher` folder, and create a docker-compose.yaml file similar to the following:
 
-As you can see, in a normal pre-docker world, you would have to set up every service manually, deal with the networking, and if you wanted to scale..oh well, get ready to go in the rabbit hole of network administration..
+```yaml
+postgres:
+  image: 'postgres:latest'
+  environment:
+    - POSTGRES_USER=blog
+    - POSTGRES_PASSWORD=blog123
 
-Rancher to the rescue!!
+redis:
+  restart: always
+  labels:
+    io.rancher.scheduler.affinity:host_label: rediscluster=true
+    io.rancher.scheduler.affinity:container_label_soft_ne: pptqueuenew=true
+    io.rancher.container.pull_image: always
+  tty: true
+  image: redis:3
+  stdin_open: true
+
+web:
+  image: 'ourrepository/myblog:latest'
+  restart: always
+  links:
+    - postgres:postgres
+    - redis:redis
+    - beanstalk:queue
+  environment:
+    - APP_DEBUG=false
+    - DB_HOST=postgres
+    - QUEUE_DRIVER=redis
+    - DB_DATABASE=blog
+    - DB_USERNAME=blog
+    - DB_PASSWORD=blog123
+    - USERMOD="1000 www-data"
+
+
+beanstalk:
+  image: 'schickling/beanstalkd:latest'
+  restart: always
+  labels:
+      io.rancher.scheduler.affinity:host_label: beanstalk=true
+      io.rancher.scheduler.affinity:container_label_soft_ne: pptqueuenew=true
+  tty: true
+  stdin_open: true
+
+web-balancer:
+  restart: always
+  ports:
+  - 443:80
+  - 80:80
+  labels:
+    io.rancher.loadbalancer.ssl.ports: '443'
+    io.rancher.scheduler.affinity:host_label: location=frontend
+    io.rancher.loadbalancer.target.web: myblog.com,www.myblog.com
+  tty: true
+  image: rancher/load-balancer-service
+  links:
+  - web:web
+  stdin_open: true
+```
+
+As you can see, we are instantiating a new PostgreSQL, a Redis server, a beanstalk server, a "web" server, and a web-balancer (neatly provided by the Rancher people).
+
+The `rancher-compose` file is unique to Rancher. It's job is to tell the system about the scale of each service, as well as the health-checks you want to have in place.
+
+For our blog, our `rancher-compose` should look like this:
+
+```yaml
+web:
+  scale: 4
+  upgrade_strategy:
+      start_first: true
+  health_check:
+      port: 80
+      interval: 30000
+      unhealthy_threshold: 4
+      response_timeout: 20000
+      request_line: GET / HTTP/1.0
+      healthy_threshold: 2
+
+web-balancer:
+  scale: 2
+  load_balancer_config:
+    name: web-balancer config
+
+
+redis:
+  scale: 1
+  health_check:
+      port: 6379
+      interval: 2000
+      unhealthy_threshold: 10
+      response_timeout: 2000
+      healthy_threshold: 2
+
+beanstalk:
+  scale: 1
+  health_check:
+      port: 11300
+      interval: 2000
+      unhealthy_threshold: 10
+      response_timeout: 2000
+      healthy_threshold: 2
+
+postgres:
+  scale: 1
+  health_check:
+      port: 5432
+      interval: 2000
+      unhealthy_threshold: 10
+      response_timeout: 2000
+      healthy_threshold: 2
+
+```
+
+We are basically saying "give me 4 running containers for the blog, and perform health checks on every service". With just one file, we now have a highly scalable, redundant, and self-healing blog!
+
+
+### The "web" server container
+
+Our goal is to create a docker image containing the final code of our app, and able to respond to HTTP requests. To do so, I created a [base image](https://github.com/lucacri/laravelcaddy) available on docker hub as ```lucacri/laravelcaddy```
+
+The image contains everything we need to start a Caddy webserver serving a Laravel application in ```/var/www```
+
+But how do we create our own image with the code? It's pretty simple!
+
+In our `rancher` folder, let's create a `blog.docker` file. This is our personal docker file that will take ```lucacri/laravelcaddy``` as a base, inject our code into the `/var/www` folder and push it the docker repository.
+
+The `blog.docker` should look like this:
+
+```yaml
+FROM lucacri/laravelcaddy:latest
+
+MAINTAINER "Luca Critelli" <lucacri@gmail.com>
+
+RUN mkdir -p /var/www
+COPY . /var/www
+RUN chown -R www-data:www-data /var/www/
+RUN rm /var/www/bootstrap/cache/config.php > /dev/null 2>&1 || true
+RUN rm /var/www/.env > /dev/null 2>&1 || true
+```
+
+Now, from the root of our Laravel app we can issue
+
+`docker build -t ourrepository/myblog -f rancher/blog.docker . && docker push ourrepository/myblog`
+
+And it will create the image `ourrepository/myblog` for us!
+
+## Let's deploy automatically and safely
+
+First we need to create an API in our Rancher environment.
+
+![Rancher API](/images/rancher-api.png "Rancher API")
+
+Rancher comes with an amazing CLI tool called `rancher-compose`. Once we finish up with our `myblog` image, and we feel confident in pushing it live, we can do so with just one simple line:
+
+`rancher-compose --url ${URL} --access-key ${RANCHER_ACCESS_KEY} --secret-key ${SECRET_KEY} up --pull --upgrade --force-upgrade -d -c`
+
+For ease, I usually create a simple bash script `push-to-live.sh` [example here](https://github.com/lucacri/rancher-article/tree/master/examples/rancher/push-to-live.sh)
+
+That's it! Rancher will now automatically download the new image on the affected hosts, and start the new containers 2 at a time, so to not have a downtime while switching versions!
+
+_note_: The previous script automatically confirms the upgrade (`-c` flag). If you want to do it manually, remove the flag, and then you can test the new version live. If you don't like it, it lets you rollback right away! 
+
+
+## But wait, there is more!
+
+I know what you are thinking. "But, Luca, it's dangerous to push without running the tests!", and I totally agree with you!
+
+Using the power of docker-compose, my Continuos Integration (using GitLab) looks something like this:
+
+- Download the code from the git repo
+- docker-compose up inside the downloaded laravel folder
+- run `phpunit` INSIDE the web container, so to make sure that the tests are passing in an environment that is as close as possible to the production one.
+- if all works, then we proceed with creating the final web docker image
+- rancher-compose to production!
+
+For the ones using GitLab (highly reccomended), this is my `.gitlab-ci` file:
+
+```yaml
+dockerandtest:
+  script:
+  - pwd
+  - git describe --tags > version.txt
+  - docker-pull lucacri/laravelcaddy
+  - docker-compose kill || true
+  - docker-compose rm -f || true
+  - docker-compose -f docker-compose-gitlab.yml kill || true
+  - docker-compose -f docker-compose-gitlab.yml rm -f || true
+  - docker-compose -f docker-compose-gitlab.yml pull
+  - composer install
+  - docker build -t ourrepository/myblog -f rancher/blog.docker .
+  - docker-compose -f docker-compose-gitlab.yml up -d && sleep 10
+  - docker exec blog_web_1 /bin/sh -c 'cd /var/www && ./vendor/bin/phpspec run'
+  - docker exec blog_web_1 /bin/sh -c 'cd /var/www && php artisan migrate'
+  - docker exec blog_web_1 /bin/sh -c 'cd /var/www &&  APP_DEBUG=true MAIL_PRETEND=true SESSION_DRIVER=array CACHE_DRIVER=array APP_ENV=testing ./vendor/bin/phpunit'
+  - docker-compose -f docker-compose-gitlab.yml kill || true
+  - docker-compose -f docker-compose-gitlab.yml rm -f || true
+  - sleep 10
+  - rm -rf storage/clockwork/*
+  only:
+  - tags
+
+live:
+  script:
+  - docker push ourrepository/myblog
+  - cd rancher && ./push-to-live.sh
+  type: deploy
+  only:
+  - tags
+
+```
+
+**NOTE**: This file assumes taht we have a `docker-compose-gitlab.yml`. The reason why I usually create a docker-compose file just for CI is because we don't need to have exposed ports on the host to run the tests, so I just copy the normal `docker-compose.yml` and remove the `ports` directives. If you don't have anything running on the exposed ports on the host, you are free to use the regular `docker-compose.yml` and skip the creation of a new file. 
 

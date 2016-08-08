@@ -10,6 +10,9 @@ gulp.task('md', function () {
     gulp.src('./node_modules/github-markdown-css/github-markdown.css')
     .pipe(gulp.dest('dist'));
 
+    gulp.src('./images/*')
+    .pipe(gulp.dest('dist/images'));
+
     gulp.src('*.md')
         .pipe(markdown())
         .pipe(wrapper({
