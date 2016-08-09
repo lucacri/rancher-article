@@ -1,6 +1,8 @@
 # TITLE
 
-intro
+At LaraconUS 2016 few people asked me about my deployment strategy, and to my stupor not many knew of the existance of Rancher, while some didn't even know about Docker! In this article I'll walk you through my development and production set up by creating a fake Laravel blog app.
+
+Rancher hit version 1.0 a few months ago, but I've been using it in production since 0.3 without major issues. At the time of this writing, my web-app [PayPerTrail](https://paypertrail.com) runs on 78 bare-metal servers, creating a replicated, high availability, automated environment. I have no idea how I would have tackled that many servers without Rancher, especially considering that I'm the only developer of our lean 2-man-show company.
 
 ## Let's start with Docker
 
@@ -368,4 +370,12 @@ live:
 ```
 
 **NOTE**: This file assumes taht we have a `docker-compose-gitlab.yml`. The reason why I usually create a docker-compose file just for CI is because we don't need to have exposed ports on the host to run the tests, so I just copy the normal `docker-compose.yml` and remove the `ports` directives. If you don't have anything running on the exposed ports on the host, you are free to use the regular `docker-compose.yml` and skip the creation of a new file. 
+
+# Conclusion
+
+There is a lot more to learn about docker and Rancher, but I hope this article spiked your interest in what I think it's one of the best piece of software for deployement.
+
+For any questions, feel free to contact me in LaraChat (@lucacri) or via twitter ([@lucacri](https://twitter.com/lucacri)).
+
+All the example files used in this article are avalable on [github](https://github.com/lucacri/rancher-article/tree/master/examples).
 
