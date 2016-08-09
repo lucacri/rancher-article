@@ -2,13 +2,16 @@
 
 At LaraconUS 2016 few people asked me about my deployment strategy, and to my stupor not many knew of the existance of Rancher, while some didn't even know about Docker! In this article I'll walk you through my development and production set up by creating a fake Laravel blog app.
 
-Rancher hit version 1.0 a few months ago, but I've been using it in production since 0.3 without major issues. At the time of this writing, my web-app [PayPerTrail](https://paypertrail.com) runs on 78 bare-metal servers, creating a replicated, high availability, automated environment. I have no idea how I would have tackled that many servers without Rancher, especially considering that I'm the only developer of our lean 2-man-show company.
+Rancher is a free and open source orchestration software for Docker. They hit version 1.0 a few months ago, but I've been using it in production since 0.3 without major issues. At the time of this writing, my web-app [PayPer Trail](https://paypertrail.com) runs on 78 bare-metal servers, creating a replicated, high availability, automated environment. I have no idea how I would have tackled that many servers without Rancher, especially considering that I'm the only developer of our lean 2-man-show company.
 
 ## Let's start with Docker
 
 Ever had the issue that a piece of code worked perfectly on your dev machine, but your coworkers couldn't run it? Or worse, once pushed to production, you noticed that an elusive library was not compatible with the code you created?
 
 This is the reason why Docker was created! 
+
+![Docker](/images/docker.png "Docker")
+
 Docker is a system that let's you create "containers", aka mini-virtual machines, just from a simple ```Dockerfile```. 
 
 The idea behind a container is simple: create a virtual machine that has only one job (nginx, redis, for example) and that it's replicable with the same environment. Once created, a container will for sure have the same libraries, dependencies, and software version as you intended. 
@@ -136,10 +139,11 @@ That's it! You now should have several containers running, and a fully functiona
 
 ## Setting up our Rancher 
 
-The main issue with Docker is that, while network connectivity between container on the same server is very easy (and secure), connecting multiple servers together is a nightmare. That is, until you use Rancher!
+![Rancher](/images/rancher.png "Rancher")
 
-Rancher is a free and open source orchestration software for Docker. They just hit version 1.0, but I've been using it successfully in production since version 0.3, and now I definitely can't live without it.
-It creates a mesh network over a secure SSH tunnel between each host, so you'll never have to worry about IPs, iptables, etc again!
+The main issue with Docker is that, while network connectivity between container on the same server is very easy (and secure), connecting multiple servers together is a nightmare. That is, until you use Rancher! For [PayPer Trail](https://paypertrail.com) we have servers all over the world (UK, CN, ES, you name it!), under different providers, which before Rancher would have required countless hours of set up to create a barely stable mesh network.
+
+Rancher creates a mesh network over a secure SSH tunnel between each host, so you'll never have to worry about IPs, iptables, etc again!
 
 A Rancher environment is composed of few elements:
 - At least one host, which can be any Linux flavor that can run Docker. Rancher itself runs from a Docker container. The only restriction is that port 500 and 4500 are open from the other hosts, for the intra-server connectivity
@@ -154,9 +158,9 @@ The one thing worth mentioning is that you can add labels to a host to help you 
 
 ### Enter the docker-compose and rancher-compose files
 
-A Rancher environment can be created via the UI, or even better, from a docker-composer.yaml file. The syntax is pretty much identical to the original docker-compose file, with few simple exceptions, mostly related to the placement of the container (remember the host labels? that's where we unleash their potential!).
+A Rancher environment can be created via the UI, or even better, from a `docker-composer.yaml` file. The syntax is pretty much identical to the original docker-compose file, with few simple exceptions, mostly related to the placement of the container (remember the host labels? that's where we unleash their potential!).
 
-So for our Laravel blog, let's create a new `rancher` folder, and create a docker-compose.yaml file similar to the following:
+So for our Laravel blog, let's create a new `rancher` folder, and create a `docker-compose.yaml` file similar to the following:
 
 ```yaml
 postgres:
@@ -219,9 +223,9 @@ web-balancer:
 
 As you can see, we are instantiating a new PostgreSQL, a Redis server, a beanstalk server, a "web" server, and a web-balancer (neatly provided by the Rancher people).
 
-The `rancher-compose` file is unique to Rancher. It's job is to tell the system about the scale of each service, as well as the health-checks you want to have in place.
+The `rancher-compose.yaml` file is unique to Rancher. It's job is to tell the system about the scale of each service, as well as the health-checks you want to have in place.
 
-For our blog, our `rancher-compose` should look like this:
+For our blog, our `rancher-compose.yaml` should look like this:
 
 ```yaml
 web:
@@ -273,6 +277,12 @@ postgres:
 
 We are basically saying "give me 4 running containers for the blog, and perform health checks on every service". With just one file, we now have a highly scalable, redundant, and self-healing blog!
 
+From the UI we can now create our Stack and copy paste the contents of our two files. It will look like this:
+
+![Stack Created](/images/stack-created.png "Stack created")
+
+Notice how everything is still "inactive". We still have to turn on the Stack, but we can already review it and make sure everything looks good. Alternatively, you can use the CLI tool `rancher-compose`, but more on that later!
+
 
 ### The "web" server container
 
@@ -317,6 +327,7 @@ Rancher comes with an amazing CLI tool called `rancher-compose`. Once we finish 
 For ease, I usually create a simple bash script `push-to-live.sh` [example here](https://github.com/lucacri/rancher-article/tree/master/examples/rancher/push-to-live.sh)
 
 That's it! Rancher will now automatically download the new image on the affected hosts, and start the new containers 2 at a time, so to not have a downtime while switching versions!
+
 
 _note_: The previous script automatically confirms the upgrade (`-c` flag). If you want to do it manually, remove the flag, and then you can test the new version live. If you don't like it, it lets you rollback right away! 
 

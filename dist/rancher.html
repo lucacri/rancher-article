@@ -7,11 +7,12 @@
 <style>body{box-sizing:border-box;min-width:200px;max-width:980px;margin:0 auto;padding:45px;}</style>
 </head><body class="markdown-body"><h1 id="title">TITLE</h1>
 <p>At LaraconUS 2016 few people asked me about my deployment strategy, and to my stupor not many knew of the existance of Rancher, while some didn&#39;t even know about Docker! In this article I&#39;ll walk you through my development and production set up by creating a fake Laravel blog app.</p>
-<p>Rancher hit version 1.0 a few months ago, but I&#39;ve been using it in production since 0.3 without major issues. At the time of this writing, my web-app <a href="https://paypertrail.com">PayPerTrail</a> runs on 78 bare-metal servers, creating a replicated, high availability, automated environment. I have no idea how I would have tackled that many servers without Rancher, especially considering that I&#39;m the only developer of our lean 2-man-show company.</p>
+<p>Rancher is a free and open source orchestration software for Docker. They hit version 1.0 a few months ago, but I&#39;ve been using it in production since 0.3 without major issues. At the time of this writing, my web-app <a href="https://paypertrail.com">PayPer Trail</a> runs on 78 bare-metal servers, creating a replicated, high availability, automated environment. I have no idea how I would have tackled that many servers without Rancher, especially considering that I&#39;m the only developer of our lean 2-man-show company.</p>
 <h2 id="let-s-start-with-docker">Let&#39;s start with Docker</h2>
 <p>Ever had the issue that a piece of code worked perfectly on your dev machine, but your coworkers couldn&#39;t run it? Or worse, once pushed to production, you noticed that an elusive library was not compatible with the code you created?</p>
-<p>This is the reason why Docker was created! 
-Docker is a system that let&#39;s you create &quot;containers&quot;, aka mini-virtual machines, just from a simple <code>Dockerfile</code>. </p>
+<p>This is the reason why Docker was created! </p>
+<p><img src="/images/docker.png" alt="Docker" title="Docker"></p>
+<p>Docker is a system that let&#39;s you create &quot;containers&quot;, aka mini-virtual machines, just from a simple <code>Dockerfile</code>. </p>
 <p>The idea behind a container is simple: create a virtual machine that has only one job (nginx, redis, for example) and that it&#39;s replicable with the same environment. Once created, a container will for sure have the same libraries, dependencies, and software version as you intended. 
 The end result is that whatever you created while developing is portable (to your coworkers and production!).</p>
 <p>The docker world has a few terms that we should get aquainted with:</p>
@@ -110,9 +111,9 @@ beanstalk:
 <p><code>docker-compose up</code></p>
 <p>That&#39;s it! You now should have several containers running, and a fully functional blog on your development machine!</p>
 <h2 id="setting-up-our-rancher">Setting up our Rancher</h2>
-<p>The main issue with Docker is that, while network connectivity between container on the same server is very easy (and secure), connecting multiple servers together is a nightmare. That is, until you use Rancher!</p>
-<p>Rancher is a free and open source orchestration software for Docker. They just hit version 1.0, but I&#39;ve been using it successfully in production since version 0.3, and now I definitely can&#39;t live without it.
-It creates a mesh network over a secure SSH tunnel between each host, so you&#39;ll never have to worry about IPs, iptables, etc again!</p>
+<p><img src="/images/rancher.png" alt="Rancher" title="Rancher"></p>
+<p>The main issue with Docker is that, while network connectivity between container on the same server is very easy (and secure), connecting multiple servers together is a nightmare. That is, until you use Rancher! For <a href="https://paypertrail.com">PayPer Trail</a> we have servers all over the world (UK, CN, ES, you name it!), under different providers, which before Rancher would have required countless hours of set up to create a barely stable mesh network.</p>
+<p>Rancher creates a mesh network over a secure SSH tunnel between each host, so you&#39;ll never have to worry about IPs, iptables, etc again!</p>
 <p>A Rancher environment is composed of few elements:</p>
 <ul>
 <li>At least one host, which can be any Linux flavor that can run Docker. Rancher itself runs from a Docker container. The only restriction is that port 500 and 4500 are open from the other hosts, for the intra-server connectivity</li>
@@ -123,8 +124,8 @@ It creates a mesh network over a secure SSH tunnel between each host, so you&#39
 <p>As I mentioned before, the hosts need to be any flavor of Linux capable of running docker. In the Rancher dashboard you can even let Rancher itself create virtual machines on DigitalOcean, AWS, etc, without ever touching the linux shell!</p>
 <p>The one thing worth mentioning is that you can add labels to a host to help you organize where a container should go/is allowed to go.</p>
 <h3 id="enter-the-docker-compose-and-rancher-compose-files">Enter the docker-compose and rancher-compose files</h3>
-<p>A Rancher environment can be created via the UI, or even better, from a docker-composer.yaml file. The syntax is pretty much identical to the original docker-compose file, with few simple exceptions, mostly related to the placement of the container (remember the host labels? that&#39;s where we unleash their potential!).</p>
-<p>So for our Laravel blog, let&#39;s create a new <code>rancher</code> folder, and create a docker-compose.yaml file similar to the following:</p>
+<p>A Rancher environment can be created via the UI, or even better, from a <code>docker-composer.yaml</code> file. The syntax is pretty much identical to the original docker-compose file, with few simple exceptions, mostly related to the placement of the container (remember the host labels? that&#39;s where we unleash their potential!).</p>
+<p>So for our Laravel blog, let&#39;s create a new <code>rancher</code> folder, and create a <code>docker-compose.yaml</code> file similar to the following:</p>
 <pre><code class="lang-yaml">postgres:
   image: &#39;postgres:latest&#39;
   environment:
@@ -183,8 +184,8 @@ web-balancer:
   stdin_open: true
 </code></pre>
 <p>As you can see, we are instantiating a new PostgreSQL, a Redis server, a beanstalk server, a &quot;web&quot; server, and a web-balancer (neatly provided by the Rancher people).</p>
-<p>The <code>rancher-compose</code> file is unique to Rancher. It&#39;s job is to tell the system about the scale of each service, as well as the health-checks you want to have in place.</p>
-<p>For our blog, our <code>rancher-compose</code> should look like this:</p>
+<p>The <code>rancher-compose.yaml</code> file is unique to Rancher. It&#39;s job is to tell the system about the scale of each service, as well as the health-checks you want to have in place.</p>
+<p>For our blog, our <code>rancher-compose.yaml</code> should look like this:</p>
 <pre><code class="lang-yaml">web:
   scale: 4
   upgrade_strategy:
@@ -231,6 +232,9 @@ postgres:
       healthy_threshold: 2
 </code></pre>
 <p>We are basically saying &quot;give me 4 running containers for the blog, and perform health checks on every service&quot;. With just one file, we now have a highly scalable, redundant, and self-healing blog!</p>
+<p>From the UI we can now create our Stack and copy paste the contents of our two files. It will look like this:</p>
+<p><img src="/images/stack-created.png" alt="Stack Created" title="Stack created"></p>
+<p>Notice how everything is still &quot;inactive&quot;. We still have to turn on the Stack, but we can already review it and make sure everything looks good. Alternatively, you can use the CLI tool <code>rancher-compose</code>, but more on that later!</p>
 <h3 id="the-web-server-container">The &quot;web&quot; server container</h3>
 <p>Our goal is to create a docker image containing the final code of our app, and able to respond to HTTP requests. To do so, I created a <a href="https://github.com/lucacri/laravelcaddy">base image</a> available on docker hub as <code>lucacri/laravelcaddy</code></p>
 <p>The image contains everything we need to start a Caddy webserver serving a Laravel application in <code>/var/www</code></p>
