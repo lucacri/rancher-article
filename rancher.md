@@ -1,6 +1,6 @@
-# TITLE
+# Docker, Rancher, and Laravel: Easy and Safe Scalability!
 
-At LaraconUS 2016 few people asked me about my deployment strategy, and to my stupor not many knew of the existance of Rancher, while some didn't even know about Docker! In this article I'll walk you through my development and production set up by creating a fake Laravel blog app.
+At LaraconUS 2016 many people asked me about my deployment strategy, and to my suprise not many were familiar with Rancher  (some didn't even know about Docker)! In this article I'll walk you through my development and production set up by creating a fake Laravel blog app.
 
 Rancher is a free and open source orchestration software for Docker. They hit version 1.0 a few months ago, but I've been using it in production since 0.3 without major issues. At the time of this writing, my web-app [PayPer Trail](https://paypertrail.com) runs on 78 bare-metal servers, creating a replicated, high availability, automated environment. I have no idea how I would have tackled that many servers without Rancher, especially considering that I'm the only developer of our lean 2-man-show company.
 
@@ -141,7 +141,7 @@ That's it! You now should have several containers running, and a fully functiona
 
 ![Rancher](/images/rancher.png "Rancher")
 
-The main issue with Docker is that, while network connectivity between container on the same server is very easy (and secure), connecting multiple servers together is a nightmare. That is, until you use Rancher! For [PayPer Trail](https://paypertrail.com) we have servers all over the world (UK, CN, ES, you name it!), under different providers, which before Rancher would have required countless hours of set up to create a barely stable mesh network.
+The main issue with Docker is that, while network connectivity between containers on the same server is very easy (and secure), connecting multiple servers together is a nightmare. That is, until you use Rancher! For [PayPer Trail](https://paypertrail.com) we have servers all over the world (UK, CN, ES, you name it!), under different providers, which before Rancher would have required countless hours of set up to create a barely stable mesh network.
 
 Rancher creates a mesh network over a secure SSH tunnel between each host, so you'll never have to worry about IPs, iptables, etc again!
 
